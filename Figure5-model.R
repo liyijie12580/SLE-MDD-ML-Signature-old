@@ -374,3 +374,66 @@ final_genes <- names(coef(logisticmodel$`glmBoost+Stepglm[both]`))[-1] #去掉�
 final_genes
 
 save.image("AUC_logisticmodel.RData")
+
+#######################AUC_95CI
+####################################################################################AUCAUC_95CI
+setwd("C:/Users/sunshiny/Downloads/SLEMDD/R代码/Figure5/model//")
+load("C:/Users/sunshiny/Downloads/SLEMDD/coDEGgene.RData")
+logist_mod <- readRDS("./Result/logisticmodel.rds")
+library(pROC)
+# 取出最优logistic模型
+fit_final <- logist_mod[["glmBoost+Stepglm[both]"]]
+
+# ==========1 训练集预测概率==========
+pred_train <- predict(fit_final, newdata = as.data.frame(Train_set), type = "response")
+y_train <- Train_class$outcome
+
+# ==========2 测试集拆分3个外部队列==========
+# Test_class包含Cohort列："GSE251778_M","GSE251778_F","GSE52790"
+cohort_list <- unique(Test_class$Cohort)
+
+res_auc_ci <- list()
+
+# ----训练集----
+roc_tr <- roc(response = y_train, predictor = pred_train)
+ci_tr <- ci.auc(roc_tr, method = "delong")
+res_auc_ci[["Train‑GSE98793"]] <- data.frame(
+  Cohort = "Train‑GSE98793",
+  AUC = as.numeric(roc_tr$auc),
+  AUC_95CI_low = ci_tr[1],
+  AUC_95CI_high = ci_tr[3]
+)
+
+# ----各个外部队列循环----
+for(coh in cohort_list){
+  idx <- which(Test_class$Cohort == coh)
+  sub_test_x <- Test_set[idx,,drop=F]
+  sub_test_y <- Test_class$outcome[idx]
+  pred_sub <- predict(fit_final, newdata = as.data.frame(sub_test_x), type="response")
+  
+  roc_obj <- roc(response = sub_test_y, predictor = pred_sub)
+  ci_obj <- ci.auc(roc_obj, method = "delong")
+  
+  res_auc_ci[[coh]] <- data.frame(
+    Cohort = coh,
+    AUC = as.numeric(roc_obj$auc),
+    AUC_95CI_low = ci_obj[1],
+    AUC_95CI_high = ci_obj[3]
+  )
+}
+
+# 合并输出表格
+auc_ci_df <- do.call(rbind, res_auc_ci)
+auc_ci_df$AUC_95CI <- paste0("(",sprintf("%.3f",auc_ci_df$AUC_95CI_low),", ",sprintf("%.3f",auc_ci_df$AUC_95CI_high),")")
+
+write.table(auc_ci_df, file.path(res.path,"AUC_summary_DeLongCI.txt"),
+            sep="\t",row.names = F,quote=F)
+
+print(auc_ci_df)
+
+
+
+
+
+
+

@@ -133,93 +133,93 @@ lrm_fit <- lrm(y~., data=train_df, x=T, y=T)
 pdf("Nomogram.pdf",width=10,height=7)
 plot(nomogram(lrm_fit, fun=plogis, funlabel="Predicted disease probability"))
 dev.off()
+# 
+# 
+# #模块 4：分队列校准曲线 + 批量 HL 检验
+# # 加载全部跑完的环境，一键补齐所有变量
+# load("C:/Users/sunshiny/Downloads/SLEMDD/R代码/Figure5/model/AUC_logisticmodel.RData")
+# 
+# # 锁定最终logistic模型
+# fit <- logisticmodel$`glmBoost+Stepglm[both]`
+# # 锁定7个目标基因
+# final_genes <- names(coef(fit))[-1]
+# final_genes
+# 
+# # 固定必备4组核心数据（你的代码已经完成标准化）
+# # Train_set：行=样本，列=7基因；训练集标准化表达
+# # Train_class：训练集标签，列名outcome，0/1
+# # Test_set：行=样本，列=7基因；测试集标准化表达
+# # Test_class：测试集，包含outcome、Cohort（GSE分组）
+# 
+# library(ggplot2)
+# library(ResourceSelection)
+# 
+# # 通用校准曲线函数，参数固定：模型、表达矩阵、真实分组、标题
+# cal_simple <- function(glm_model, expr_mat, true_y, plot_title){
+#   df <- data.frame(
+#     true_y = true_y,
+#     pred_p = predict(glm_model, newdata = data.frame(expr_mat[,final_genes]), type = "response")
+#   )
+#   # Hosmer-Lemeshow检验
+#   hl_p <- hoslem.test(df$true_y, df$pred_p, g=10)$p.value
+#   # 概率分箱
+#   df$bin <- cut(df$pred_p, breaks = seq(0,1,0.2), include.lowest = TRUE)
+#   bin_summary <- aggregate(cbind(pred_p, true_y) ~ bin, data = df, mean)
+#   
+#   p <- ggplot(bin_summary, aes(x = pred_p, y = true_y)) +
+#     geom_line(color = "#E63946", linewidth = 1) +
+#     geom_point(size = 2, color = "#E63946") +
+#     geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black", linewidth = 1) +
+#     labs(x = "Predicted probability", y = "Observed probability",
+#          title = paste0(plot_title, " | HL P = ", round(hl_p, 3))) +
+#     xlim(0, 1) + ylim(0, 1) +
+#     theme_bw() + theme(plot.title = element_text(hjust = 0.5))
+#   print(p)
+#   return(hl_p)
+# }
+# 
+# cal_simple(
+#   glm_model = fit,
+#   expr_mat = Train_set,
+#   true_y = Train_class$outcome,
+#   plot_title = "Training cohort calibration"
+# )
+# 
+# # 批量导出全部校准图到PDF
+# pdf("All_cohort_calibration.pdf", width=8, height=6)
+# # 训练集
+# cal_simple(fit, Train_set, Train_class$outcome, "Training cohort")
+# # 遍历所有测试队列
+# all_cohort <- unique(Test_class$Cohort)
+# for (co in all_cohort) {
+#   idx <- Test_class$Cohort == co
+#   cal_simple(
+#     glm_model = fit,
+#     expr_mat = Test_set[idx, ],
+#     true_y = Test_class$outcome[idx],
+#     plot_title = paste0(co, " calibration")
+#   )
+# }
+# dev.off()
+
+# 
+# library(rms)
+# # 训练集构建lrm
+# train_df <- data.frame(y = Train_class$outcome, Train_set[,final_genes])
+# dd <- datadist(train_df)
+# options(datadist = "dd")
+# lrm_fit <- lrm(y ~ ., data = train_df, x=T, y=T)
+# 
+# # 绘制GSE52790 bootstrap校准
+# pdf("GSE52790_bootstrap_cal.pdf", width=7, height=6)
+# plot(calibrate(lrm_fit, newdata = Test_set[Test_class$Cohort=="GSE52790",], B=100),
+#      xlab="Predicted probability", ylab="Observed probability",
+#      main="GSE52790 Bootstrap Calibration")
+# dev.off()
 
 
-#模块 4：分队列校准曲线 + 批量 HL 检验
-# 加载全部跑完的环境，一键补齐所有变量
-load("C:/Users/sunshiny/Downloads/SLEMDD/R代码/Figure5/model/AUC_logisticmodel.RData")
 
-# 锁定最终logistic模型
-fit <- logisticmodel$`glmBoost+Stepglm[both]`
-# 锁定7个目标基因
-final_genes <- names(coef(fit))[-1]
-final_genes
-
-# 固定必备4组核心数据（你的代码已经完成标准化）
-# Train_set：行=样本，列=7基因；训练集标准化表达
-# Train_class：训练集标签，列名outcome，0/1
-# Test_set：行=样本，列=7基因；测试集标准化表达
-# Test_class：测试集，包含outcome、Cohort（GSE分组）
-
-library(ggplot2)
-library(ResourceSelection)
-
-# 通用校准曲线函数，参数固定：模型、表达矩阵、真实分组、标题
-cal_simple <- function(glm_model, expr_mat, true_y, plot_title){
-  df <- data.frame(
-    true_y = true_y,
-    pred_p = predict(glm_model, newdata = data.frame(expr_mat[,final_genes]), type = "response")
-  )
-  # Hosmer-Lemeshow检验
-  hl_p <- hoslem.test(df$true_y, df$pred_p, g=10)$p.value
-  # 概率分箱
-  df$bin <- cut(df$pred_p, breaks = seq(0,1,0.2), include.lowest = TRUE)
-  bin_summary <- aggregate(cbind(pred_p, true_y) ~ bin, data = df, mean)
-  
-  p <- ggplot(bin_summary, aes(x = pred_p, y = true_y)) +
-    geom_line(color = "#E63946", linewidth = 1) +
-    geom_point(size = 2, color = "#E63946") +
-    geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "black", linewidth = 1) +
-    labs(x = "Predicted probability", y = "Observed probability",
-         title = paste0(plot_title, " | HL P = ", round(hl_p, 3))) +
-    xlim(0, 1) + ylim(0, 1) +
-    theme_bw() + theme(plot.title = element_text(hjust = 0.5))
-  print(p)
-  return(hl_p)
-}
-
-cal_simple(
-  glm_model = fit,
-  expr_mat = Train_set,
-  true_y = Train_class$outcome,
-  plot_title = "Training cohort calibration"
-)
-
-# 批量导出全部校准图到PDF
-pdf("All_cohort_calibration.pdf", width=8, height=6)
-# 训练集
-cal_simple(fit, Train_set, Train_class$outcome, "Training cohort")
-# 遍历所有测试队列
-all_cohort <- unique(Test_class$Cohort)
-for (co in all_cohort) {
-  idx <- Test_class$Cohort == co
-  cal_simple(
-    glm_model = fit,
-    expr_mat = Test_set[idx, ],
-    true_y = Test_class$outcome[idx],
-    plot_title = paste0(co, " calibration")
-  )
-}
-dev.off()
-
-
-library(rms)
-# 训练集构建lrm
-train_df <- data.frame(y = Train_class$outcome, Train_set[,final_genes])
-dd <- datadist(train_df)
-options(datadist = "dd")
-lrm_fit <- lrm(y ~ ., data = train_df, x=T, y=T)
-
-# 绘制GSE52790 bootstrap校准
-pdf("GSE52790_bootstrap_cal.pdf", width=7, height=6)
-plot(calibrate(lrm_fit, newdata = Test_set[Test_class$Cohort=="GSE52790",], B=100),
-     xlab="Predicted probability", ylab="Observed probability",
-     main="GSE52790 Bootstrap Calibration")
-dev.off()
-
-
-
-
+setwd("C:/Users/sunshiny/Downloads/SLEMDD/R代码/Figure5/model/")
 
 library(rms)
 library(ggplot2)
@@ -233,6 +233,7 @@ train_df <- data.frame(y = Train_class$outcome, Train_set[,final_genes])
 dd <- datadist(train_df)
 options(datadist = dd)
 lrm_fit <- lrm(y ~ ., data = train_df, x = TRUE, y = TRUE)
+setwd("./InputData/test/")
 plot_cali_boot <- function(sub_expr, sub_y, cohort_name, B=100){
   plot_df <- data.frame(y = sub_y, sub_expr[,final_genes])
   # Bootstrap校准计算
@@ -261,6 +262,41 @@ plot_cali_boot <- function(sub_expr, sub_y, cohort_name, B=100){
   # 返回汇总信息
   return(data.frame(Cohort=cohort_name, SampleSize=nrow(plot_df), MAE=mae))
 }
+
+
+plot_cali_boot <- function(sub_expr, sub_y, cohort_name, B=100){
+  plot_df <- data.frame(y = sub_y, sub_expr[,final_genes])
+  # Bootstrap校准计算
+  cal_obj <- calibrate(lrm_fit, newdata = plot_df, B = B)
+  cal_df <- as.data.frame(cal_obj)
+  
+  # 自动匹配预测概率列、观测概率列，兼容所有rms版本
+  pred_col <- grep("pred|mean", colnames(cal_df), value = TRUE)[1]
+  obs_col  <- grep("KM|obs", colnames(cal_df), value = TRUE)[1]
+  
+  # 计算MAE，NA过滤防止NaN
+  pred_vals <- cal_df[[pred_col]]
+  obs_vals  <- cal_df[[obs_col]]
+  valid_idx <- !is.na(pred_vals) & !is.na(obs_vals)
+  mae <- if(sum(valid_idx) > 0) round(mean(abs(pred_vals[valid_idx] - obs_vals[valid_idx])), 3) else NA
+  
+  # 导出PDF（用绝对路径目录）
+  pdf(paste0("BootCal_", cohort_name, ".pdf"), width = 7, height = 6)
+  plot(cal_obj,
+       xlab = "Model-predicted values",
+       ylab = "Observed outcome proportion",
+       main = paste0(cohort_name, "\nMAE = ", mae, ", n = ", nrow(plot_df)),
+       legend = TRUE)
+  mtext(paste0("Bootstrap repetitions = ", B), side = 1, line = 4)
+  dev.off()
+  
+  return(data.frame(Cohort = cohort_name, SampleSize = nrow(plot_df), MAE = mae))
+}
+
+
+
+
+
 
 mae_all <- list()
 
